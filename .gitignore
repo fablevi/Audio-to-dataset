@@ -1,0 +1,16 @@
+
+backend/__pycache__/main.cpython-314.pyc
+backend/app/__pycache__/__init__.cpython-314.pyc
+backend/app/controllers/__pycache__/diarization.cpython-314.pyc
+backend/app/controllers/__pycache__/__init__.cpython-314.pyc
+backend/app/models/__pycache__/__init__.cpython-314.pyc
+backend/app/models/__pycache__/diarization.cpython-314.pyc
+backend/app/services/__pycache__/__init__.cpython-314.pyc
+.idea/inspectionProfiles/profiles_settings.xml
+.idea/Audio-to-dataset.iml
+.idea/modules.xml
+.idea/misc.xml
+.idea/vcs.xml
+backend/CrispASR/
+/backend/models/*
+backend/app/services/__pycache__/diarization.cpython-314.pyc
