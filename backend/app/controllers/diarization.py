@@ -1,8 +1,10 @@
-import os
 import logging
+import os
+from typing import Optional
 from fastapi import APIRouter, File, HTTPException, UploadFile
+
 from app.models.diarization import DiarizationResponse
-from app.services.diarization import diarization_service, StatusResponse
+from app.services.diarization import StatusResponse, diarization_service
 
 logger = logging.getLogger(__name__)
 
@@ -12,7 +14,9 @@ ALLOWED_EXTENSIONS = {".wav", ".mp3", ".flac", ".ogg", ".m4a"}
 
 
 @router.post("/start")
-async def start_diarization(file: UploadFile = File(...)):
+async def start_diarization(
+    file: UploadFile = File(...), language: Optional[str] = None
+):
     ext = os.path.splitext(file.filename)[1].lower() if file.filename else ""
     is_valid_mime = file.content_type and file.content_type.startswith("audio/")
     is_valid_ext = ext in ALLOWED_EXTENSIONS
@@ -28,9 +32,11 @@ async def start_diarization(file: UploadFile = File(...)):
 
     content = await file.read()
     try:
-        logger.info(f"Starting background task for audio file: {file.filename or 'unnamed'}")
+        logger.info(
+            f"Starting background task for audio file: {file.filename or 'unnamed'}"
+        )
         task_id = diarization_service.start_task(
-            file_bytes=content, file_extension=ext or ".wav"
+            file_bytes=content, file_extension=ext or ".mp3", language=language
         )
         return {"task_id": task_id, "status": "started"}
     except Exception as e:
@@ -42,7 +48,9 @@ async def start_diarization(file: UploadFile = File(...)):
 async def stop_diarization(task_id: str):
     success = diarization_service.stop_task(task_id)
     if not success:
-        raise HTTPException(status_code=404, detail="Task not found or already completed.")
+        raise HTTPException(
+            status_code=404, detail="Task not found or already completed."
+        )
     return {"task_id": task_id, "status": "stopped"}
 
 
@@ -59,19 +67,26 @@ async def get_task_data(task_id: str):
     info = diarization_service.get_task_status(task_id)
     if not info:
         raise HTTPException(status_code=404, detail="Task not found.")
-    
+
     if info.is_running:
-        raise HTTPException(status_code=400, detail="Task is still running. Please try again later.")
-    
+        raise HTTPException(
+            status_code=400, detail="Task is still running. Please try again later."
+        )
+
     data = diarization_service.get_task_data(task_id)
     if not data:
-        raise HTTPException(status_code=404, detail="No data available for this task (task might have failed or stopped).")
-    
+        raise HTTPException(
+            status_code=404,
+            detail="No data available for this task (task might have failed or stopped).",
+        )
+
     return data
 
 
 @router.post("/analyze", response_model=DiarizationResponse)
-async def analyze_audio(file: UploadFile = File(...)):
+async def analyze_audio(
+    file: UploadFile = File(...), language: Optional[str] = None
+):
     ext = os.path.splitext(file.filename)[1].lower() if file.filename else ""
     is_valid_mime = file.content_type and file.content_type.startswith("audio/")
     is_valid_ext = ext in ALLOWED_EXTENSIONS
@@ -88,9 +103,11 @@ async def analyze_audio(file: UploadFile = File(...)):
     content = await file.read()
 
     try:
-        logger.info(f"Synchronous processing started for audio file: {file.filename or 'unnamed'}")
+        logger.info(
+            f"Synchronous processing started for audio file: {file.filename or 'unnamed'}"
+        )
         response = await diarization_service.process_audio(
-            file_bytes=content, file_extension=ext or ".wav"
+            file_bytes=content, file_extension=ext or ".mp3", language=language
         )
         return response
     except Exception as e:

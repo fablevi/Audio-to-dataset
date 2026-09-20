@@ -1,14 +1,15 @@
+import asyncio
+import json
+import logging
 import os
-import re
 import subprocess
 import tempfile
-import logging
-import asyncio
+from enum import Enum
 from typing import Dict, Optional
 from uuid import uuid4
-from enum import Enum
 from pydantic import BaseModel
-from app.models.diarization import DiarizationResponse, SpeakerTurn
+
+from app.models.diarization import DiarizationResponse
 
 logger = logging.getLogger(__name__)
 
@@ -55,106 +56,8 @@ class DiarizationService:
             return alt_bin
         raise RuntimeError(f"CrispASR binary not found: {CRISPASR_BIN}")
 
-    def parse_output(self, raw_output: str) -> DiarizationResponse:
-        segments_data = []
-        unique_speakers = set()
-
-        logger.debug(f"Parsing raw CLI output:\n{raw_output}")
-
-        # 1. Minta: [0.68] Levanta területén... [2.68] (Beszélővel vagy anélkül)
-        pattern_with_end_ts = re.compile(
-            r"\[(?P<start>\d+\.\d+)\]\s*(?:\[(?P<speaker>S\d+|SPEAKER_\d+|spk\d+)\]\s*)?(?P<text>.*?)\s*\[(?P<end>\d+\.\d+)\]",
-            re.DOTALL | re.IGNORECASE,
-        )
-
-        matches = list(pattern_with_end_ts.finditer(raw_output))
-
-        if matches:
-            for match in matches:
-                spk = match.group("speaker")
-                spk = spk.upper() if spk else "SPEAKER_00"
-                start_time = float(match.group("start"))
-                end_time = float(match.group("end"))
-                clean_text = match.group("text").strip()
-
-                if clean_text:
-                    # Duplikátum szűrés: ha a legutóbbi szegmens pontosan ugyanaz, kihagyjuk
-                    if segments_data:
-                        last_seg = segments_data[-1]
-                        if (
-                            last_seg.speaker == spk
-                            and last_seg.start == round(start_time, 2)
-                            and last_seg.end == round(end_time, 2)
-                            and last_seg.text == clean_text
-                        ):
-                            continue
-
-                    unique_speakers.add(spk)
-                    segments_data.append(
-                        SpeakerTurn(
-                            speaker=spk,
-                            start=round(start_time, 2),
-                            end=round(end_time, 2),
-                            text=clean_text,
-                        )
-                    )
-
-        # 2. Minta: Hagyományos szegmentált minta (ha nincs záró időbélyeg)
-        if not segments_data:
-            strict_pattern = re.compile(
-                r"\[(?P<start>\d+\.\d+)\]\s*(?:\[(?P<speaker>S\d+|SPEAKER_\d+|spk\d+)\]\s*)?(?P<text>.*?)(?=\[\d+\.\d+\]|$)",
-                re.DOTALL | re.IGNORECASE,
-            )
-            strict_matches = list(strict_pattern.finditer(raw_output))
-
-            for i, match in enumerate(strict_matches):
-                spk = match.group("speaker")
-                spk = spk.upper() if spk else "SPEAKER_00"
-                start_time = float(match.group("start"))
-                raw_text = match.group("text").strip()
-                clean_text = re.sub(r"\[\d+\.\d+\]", "", raw_text).strip()
-
-                if not clean_text:
-                    continue
-
-                if i + 1 < len(strict_matches):
-                    end_time = float(strict_matches[i + 1].group("start"))
-                else:
-                    end_time = round(start_time + 3.0, 2)
-
-                # Duplikátum szűrés
-                if segments_data:
-                    last_seg = segments_data[-1]
-                    if (
-                        last_seg.speaker == spk
-                        and last_seg.start == round(start_time, 2)
-                        and last_seg.text == clean_text
-                    ):
-                        continue
-
-                unique_speakers.add(spk)
-                segments_data.append(
-                    SpeakerTurn(
-                        speaker=spk,
-                        start=round(start_time, 2),
-                        end=round(end_time, 2),
-                        text=clean_text,
-                    )
-                )
-
-        if not segments_data:
-            logger.warning(
-                f"Failed to parse any segments from raw output. Raw content:\n{raw_output}"
-            )
-
-        return DiarizationResponse(
-            speaker_count=len(unique_speakers),
-            speakers=sorted(list(unique_speakers)),
-            segments=segments_data,
-        )
-
     def start_task(
-        self, file_bytes: bytes, file_extension: str, language: str = "en"
+        self, file_bytes: bytes, file_extension: str, language: Optional[str] = None
     ) -> str:
         bin_to_use = self.get_bin_path()
 
@@ -177,70 +80,82 @@ class DiarizationService:
         bin_path: str,
         file_bytes: bytes,
         file_extension: str,
-        language: str,
+        language: Optional[str] = None,
     ):
-        suffix = (
-            file_extension
-            if file_extension.startswith(".")
-            else f".{file_extension}"
-        )
-        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
-        temp_file.write(file_bytes)
-        temp_file.close()
-        temp_path = temp_file.name
+        suffix = file_extension if file_extension.startswith(".") else f".{file_extension}"
 
-        cmd = [
-            bin_path,
-            "--backend",
-            "moss-diarize",
-            "-m",
-            MODEL_PATH,
-            "-f",
-            temp_path,
-            "-l",
-            language,
-        ]
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_audio_path = os.path.join(temp_dir, f"audio_{task_id}{suffix}")
+            output_json_prefix = os.path.join(temp_dir, f"result_{task_id}")
+            expected_json_path = f"{output_json_prefix}.json"
 
-        logger.info(f"Task {task_id}: Starting execution with CLI: {' '.join(cmd)}")
-        self._tasks[task_id] = TaskStatus.RUNNING
+            with open(temp_audio_path, "wb") as f:
+                f.write(file_bytes)
 
-        try:
-            process = subprocess.Popen(
-                cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
-            )
-            self._processes[task_id] = process
+            cmd = [
+                bin_path,
+                "--backend",
+                "moss-diarize",
+                "-m",
+                MODEL_PATH,
+                "-f",
+                temp_audio_path,
+                "--output-json-full",
+                "-of",
+                output_json_prefix,
+            ]
 
-            stdout, stderr = await asyncio.to_thread(process.communicate)
+            # Ha van language megadva, hozzáadjuk a parancshoz
+            if language:
+                cmd.extend(["-l", language])
 
-            if process.returncode != 0:
-                if self._tasks[task_id] == TaskStatus.STOPPED:
-                    logger.info(
-                        f"Task {task_id}: Process execution stopped by user request."
-                    )
+            logger.info(f"Task {task_id}: Starting execution with CLI: {' '.join(cmd)}")
+            self._tasks[task_id] = TaskStatus.RUNNING
+
+            try:
+                process = subprocess.Popen(
+                    cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+                )
+                self._processes[task_id] = process
+
+                stdout, stderr = await asyncio.to_thread(process.communicate)
+
+                if process.returncode != 0:
+                    if self._tasks[task_id] == TaskStatus.STOPPED:
+                        logger.info(
+                            f"Task {task_id}: Process execution stopped by user request."
+                        )
+                        return
+                    logger.error(f"Task {task_id}: Process failed with error: {stderr}")
+                    self._tasks[task_id] = TaskStatus.FAILED
+                    self._errors[task_id] = f"CLI Execution error: {stderr}"
                     return
-                logger.error(f"Task {task_id}: Process failed with error: {stderr}")
+
+                if not os.path.exists(expected_json_path):
+                    err_msg = f"Output JSON file missing at {expected_json_path}"
+                    logger.error(f"Task {task_id}: {err_msg}")
+                    self._tasks[task_id] = TaskStatus.FAILED
+                    self._errors[task_id] = err_msg
+                    return
+
+                with open(expected_json_path, "r", encoding="utf-8") as json_file:
+                    raw_data = json.load(json_file)
+
+                response = DiarizationResponse.model_validate(raw_data)
+
+                self._results[task_id] = response
+                self._tasks[task_id] = TaskStatus.COMPLETED
+                logger.info(f"Task {task_id}: Completed successfully.")
+
+            except Exception as e:
+                logger.error(
+                    f"Task {task_id}: Exception during execution: {str(e)}",
+                    exc_info=True,
+                )
                 self._tasks[task_id] = TaskStatus.FAILED
-                self._errors[task_id] = f"CLI Execution error: {stderr}"
-                return
-
-            raw_output = (stdout or "") + "\n" + (stderr or "")
-            response = self.parse_output(raw_output)
-
-            self._results[task_id] = response
-            self._tasks[task_id] = TaskStatus.COMPLETED
-            logger.info(f"Task {task_id}: Completed successfully.")
-
-        except Exception as e:
-            logger.error(
-                f"Task {task_id}: Exception during execution: {str(e)}",
-                exc_info=True,
-            )
-            self._tasks[task_id] = TaskStatus.FAILED
-            self._errors[task_id] = str(e)
-        finally:
-            self._processes.pop(task_id, None)
-            if os.path.exists(temp_path):
-                os.remove(temp_path)
+                self._errors[task_id] = str(e)
+            finally:
+                self._processes.pop(task_id, None)
 
     def stop_task(self, task_id: str) -> bool:
         if task_id not in self._tasks:
@@ -274,7 +189,7 @@ class DiarizationService:
         return self._results.get(task_id)
 
     async def process_audio(
-        self, file_bytes: bytes, file_extension: str, language: str = "en"
+        self, file_bytes: bytes, file_extension: str, language: Optional[str] = None
     ) -> DiarizationResponse:
         task_id = self.start_task(file_bytes, file_extension, language)
         while True:
