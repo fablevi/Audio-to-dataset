@@ -1,7 +1,7 @@
 import logging
 import os
 from typing import Optional
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, File, HTTPException, Response, UploadFile
 
 from app.models.diarization import DiarizationResponse
 from app.services.diarization import StatusResponse, diarization_service
@@ -15,7 +15,7 @@ ALLOWED_EXTENSIONS = {".wav", ".mp3", ".flac", ".ogg", ".m4a"}
 
 @router.post("/start")
 async def start_diarization(
-    file: UploadFile = File(...), language: Optional[str] = None
+    file: UploadFile = File(...), language: Optional[str] = "hu"
 ):
     ext = os.path.splitext(file.filename)[1].lower() if file.filename else ""
     is_valid_mime = file.content_type and file.content_type.startswith("audio/")
@@ -83,9 +83,58 @@ async def get_task_data(task_id: str):
     return data
 
 
+@router.get("/audio/{task_id}/{chunk_id}")
+async def get_audio_chunk(task_id: str, chunk_id: int):
+    """Visszaadja a megadott feladat adott szegmensének hanganyagát WAV-ként."""
+    raw_data = diarization_service.get_raw_data(task_id)
+    if not raw_data:
+        raise HTTPException(status_code=404, detail="Task or data not found.")
+
+    transcription = raw_data.get("transcription", [])
+
+    if chunk_id < 0 or chunk_id >= len(transcription):
+        raise HTTPException(
+            status_code=404,
+            detail=f"Chunk ID {chunk_id} out of bounds (total segments: {len(transcription)}).",
+        )
+
+    target_segment = transcription[chunk_id]
+
+    audio_path = diarization_service.get_audio_path(task_id)
+    if not audio_path or not os.path.exists(audio_path):
+        raise HTTPException(
+            status_code=404, detail="Original audio file not found on disk."
+        )
+
+    offsets = target_segment.get("offsets", {})
+
+    start_ms = offsets.get("from")
+    end_ms = offsets.get("to")
+
+    if start_ms is None or end_ms is None:
+        raise HTTPException(
+            status_code=400, detail=f"Invalid offset timestamps in segment: {offsets}"
+        )
+
+    # Vágási pontosság javítása: kis biztonsági margó (50ms)
+    PADDING_MS = 50
+    start_ms = max(0, int(start_ms) - PADDING_MS)
+    end_ms = int(end_ms) + PADDING_MS
+
+    chunk_bytes = diarization_service.extract_audio_chunk_bytes(
+        audio_path, start_ms, end_ms
+    )
+    if not chunk_bytes:
+        raise HTTPException(
+            status_code=500, detail="Failed to extract audio segment."
+        )
+
+    return Response(content=chunk_bytes, media_type="audio/wav")
+
+
 @router.post("/analyze", response_model=DiarizationResponse)
 async def analyze_audio(
-    file: UploadFile = File(...), language: Optional[str] = None
+    file: UploadFile = File(...), language: Optional[str] = "hu"
 ):
     ext = os.path.splitext(file.filename)[1].lower() if file.filename else ""
     is_valid_mime = file.content_type and file.content_type.startswith("audio/")

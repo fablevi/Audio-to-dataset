@@ -14,3 +14,5 @@ backend/app/services/__pycache__/__init__.cpython-314.pyc
 backend/CrispASR/
 /backend/models/*
 backend/app/services/__pycache__/diarization.cpython-314.pyc
+/backend/storage/audio
+backend/app/services/__pycache__/model_downloader.cpython-314.pyc

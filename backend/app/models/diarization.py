@@ -1,10 +1,10 @@
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 
 
 class CrispASRMetadata(BaseModel):
-    backend: str
-    model: str
+    backend: Optional[str] = "whisper"
+    model: Optional[str] = None
     language: Optional[str] = None
 
 
@@ -27,11 +27,20 @@ class OffsetRange(BaseModel):
 class TranscriptionSegment(BaseModel):
     timestamps: TimestampRange
     offsets: OffsetRange
-    speaker: str
-    text: str
-    chunk_id: int
+    speaker: Optional[str] = "Speaker 0"
+    text: Optional[str] = ""
+    chunk_id: Optional[int] = 0
+    speech: Optional[str] = None
+    words: Optional[List[Dict[str, Any]]] = None
+    tokens: Optional[List[Dict[str, Any]]] = None
+
+    class Config:
+        extra = "ignore"
 
 
 class DiarizationResponse(BaseModel):
-    crispasr: CrispASRMetadata
-    transcription: List[TranscriptionSegment]
+    crispasr: Optional[CrispASRMetadata] = None
+    transcription: List[TranscriptionSegment] = []
+
+    class Config:
+        extra = "ignore"
