@@ -192,6 +192,7 @@ class DiarizationService:
                 "--diarize-method",
                 "foxnose",
                 "--vad",
+                "--ck 60"
             ]
 
             if language:
