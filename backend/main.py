@@ -4,7 +4,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.controllers.diarization import router as diarization_router
+from app.controllers.youtube_downloader import router as youtube_downloader_router 
 from app.services.model_downloader import model_initializer_service
+from app.controllers.parquet_controller import router as parquet_router
 
 logging.basicConfig(
     level=logging.INFO,
@@ -14,12 +16,10 @@ logging.basicConfig(
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Runs on application startup:
     logging.info("Initializing application startup tasks...")
     model_initializer_service.clean_storage()
     model_initializer_service.ensure_models_exist()
     yield
-    # Runs on application shutdown:
     logging.info("Shutting down application...")
 
 
@@ -38,8 +38,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Register controllers
 app.include_router(diarization_router)
+app.include_router(youtube_downloader_router)
+app.include_router(parquet_router)
 
 
 @app.get("/health", tags=["System"])
