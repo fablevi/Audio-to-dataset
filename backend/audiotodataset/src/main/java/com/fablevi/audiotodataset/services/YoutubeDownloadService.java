@@ -2,6 +2,8 @@ package com.fablevi.audiotodataset.services;
 
 import com.fablevi.audiotodataset.models.YoutubeDownloadRequest;
 import com.fablevi.audiotodataset.models.YoutubeDownloadResponse;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.io.File;
@@ -14,26 +16,33 @@ public class YoutubeDownloadService {
     private static final Pattern VIDEO_ID_PATTERN =
             Pattern.compile("(?:watch\\?v=|youtu\\.be/|shorts/|embed/)([a-zA-Z0-9_-]{11})");
 
+    @Value("${audio.download.dir}")
+    private String defaultDir;
+
+    @Autowired
+    private SearchFolderService searchFolderService;
+
     public YoutubeDownloadResponse download(YoutubeDownloadRequest request) throws IOException, InterruptedException {
 
-        String dir = request.getOutputDir() == null ? "/tmp/yt_downloads" : request.getOutputDir();
-        File d = new File(dir);
-        if (!d.exists()) {
-            d.mkdirs();
-        }
-
         String videoId = extractVideoId(request.getUrl());
-        String pattern = d.getAbsolutePath() + "/" + videoId + ".wav";
-        File file = new File(pattern);
 
-        if (file.exists()) {
+        if (searchFolderService.isAudioDownloaded(videoId)) {
+            String existingPath = defaultDir + "/" + videoId + ".wav";
             return YoutubeDownloadResponse.builder()
-                    .path(pattern)
+                    .path(existingPath)
                     .id(videoId)
                     .quality(request.getQuality())
                     .responseMessage("Video already downloaded")
                     .build();
         }
+
+        String dir = request.getOutputDir() == null ? defaultDir : request.getOutputDir();
+        File d = new File(dir);
+        if (!d.exists()) {
+            d.mkdirs();
+        }
+
+        String pattern = d.getAbsolutePath() + "/" + videoId + ".wav";
 
         ProcessBuilder pb = new ProcessBuilder(
                 "yt-dlp",

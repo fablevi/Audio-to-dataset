@@ -8,12 +8,22 @@ echo "=========================================="
 echo " CrispASR Automated Installer & Setup"
 echo "=========================================="
 
-for cmd in git cmake python3; do
-    if ! command -v $cmd &> /dev/null; then
+for cmd in git cmake curl; do
+    if ! command -v "$cmd" &> /dev/null; then
         echo "Error: Required command '$cmd' is not installed or not in PATH."
         exit 1
     fi
 done
+
+echo "-> Checking for yt-dlp..."
+if ! command -v yt-dlp &> /dev/null; then
+    echo "-> yt-dlp not found. Installing latest binary to /usr/local/bin..."
+    sudo curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp -o /usr/local/bin/yt-dlp
+    sudo chmod a+rx /usr/local/bin/yt-dlp
+    echo "-> yt-dlp installed successfully."
+else
+    echo "-> yt-dlp is already installed."
+fi
 
 echo "Select GPU backend for C++ build:"
 echo "1) CUDA (NVIDIA)"
@@ -27,8 +37,8 @@ case $GPU_CHOICE in
     1)
         CUDA_HOST_COMPILER=""
         for gcc_ver in g++-15 g++-14 g++-13; do
-            if command -v $gcc_ver &> /dev/null; then
-                CUDA_HOST_COMPILER=$(command -v $gcc_ver)
+            if command -v "$gcc_ver" &> /dev/null; then
+                CUDA_HOST_COMPILER=$(command -v "$gcc_ver")
                 break
             fi
         done
@@ -78,7 +88,6 @@ echo "-> Building C++ binary ($BACKEND_NAME backend)..."
 cmake -B build $EXTRA_CMAKE_FLAGS -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j$(nproc)
 
-# Keresse meg a libcrispasr.so-t a build mappában
 LIB_PATH=$(find "$(pwd)/build" -name "libcrispasr.so" | head -n 1)
 cd ..
 
@@ -103,16 +112,8 @@ fi
 
 export CRISPASR_LIB_PATH="$LIB_PATH"
 
-echo "-> Creating Python virtual environment using 'venv'..."
-python3 -m venv .venv
-
-echo "-> Upgrading pip and installing dependencies..."
-.venv/bin/python -m pip install --upgrade pip
-.venv/bin/python -m pip install -r requirements.txt
-
 echo "=========================================="
 echo " INSTALLATION SUCCESSFUL"
 echo "=========================================="
-echo "Run the following commands to apply changes:"
+echo "Run the following command to apply environment variables:"
 echo "  source ~/.bashrc"
-echo "  source .venv/bin/activate"
