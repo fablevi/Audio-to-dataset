@@ -2,7 +2,8 @@
 set -e
 
 REPO_URL="https://github.com/CrispStrobe/CrispASR.git"
-PROJECT_DIR="CrispASR"
+TARGET_BASE="$HOME/.audiotodataset/model"
+PROJECT_DIR="$TARGET_BASE/CrispASR"
 
 echo "=========================================="
 echo " CrispASR Automated Installer & Setup"
@@ -70,11 +71,18 @@ esac
 
 echo "-> Selected: $BACKEND_NAME"
 
+# Célmappa létrehozása, ahová letöltünk és buildelünk
+echo "-> Ensuring target directory exists: $TARGET_BASE"
+mkdir -p "$TARGET_BASE"
+
 if [ ! -d "$PROJECT_DIR" ]; then
-    echo "-> CrispASR directory not found. Cloning repository..."
+    echo "-> Cloning CrispASR repository into $PROJECT_DIR..."
     git clone --recursive "$REPO_URL" "$PROJECT_DIR"
 else
-    echo "-> CrispASR directory already exists. Skipping clone."
+    echo "-> CrispASR directory already exists. Pulling latest changes..."
+    cd "$PROJECT_DIR"
+    git pull
+    cd - > /dev/null
 fi
 
 cd "$PROJECT_DIR"
@@ -84,7 +92,7 @@ if [ -d "build" ]; then
     rm -rf build
 fi
 
-echo "-> Building C++ binary ($BACKEND_NAME backend)..."
+echo "-> Building C++ binary ($BACKEND_NAME backend) inside $PROJECT_DIR..."
 cmake -B build $EXTRA_CMAKE_FLAGS -DCMAKE_BUILD_TYPE=Release
 cmake --build build -j$(nproc)
 
@@ -99,21 +107,25 @@ fi
 echo "-> Found library at: $LIB_PATH"
 
 EXPORT_LINE="export CRISPASR_LIB_PATH=\"$LIB_PATH\""
+PROPERTY_EXPORT_LINE="export CRISPASR_DIR=\"$TARGET_BASE\""
 
-if grep -q "CRISPASR_LIB_PATH" ~/.bashrc; then
-    echo "-> Updating CRISPASR_LIB_PATH in ~/.bashrc..."
-    sed -i "/CRISPASR_LIB_PATH/c\\$EXPORT_LINE" ~/.bashrc
-else
-    echo "-> Adding CRISPASR_LIB_PATH to ~/.bashrc..."
-    echo "" >> ~/.bashrc
-    echo "# CrispASR Library Path" >> ~/.bashrc
-    echo "$EXPORT_LINE" >> ~/.bashrc
-fi
+for line in "$EXPORT_LINE" "$PROPERTY_EXPORT_LINE"; do
+    var_name=$(echo "$line" | cut -d'=' -f1 | awk '{print $2}')
+    if grep -q "$var_name" ~/.bashrc; then
+        echo "-> Updating $var_name in ~/.bashrc..."
+        sed -i "/$var_name/c\\$line" ~/.bashrc
+    else
+        echo "-> Adding $var_name to ~/.bashrc..."
+        echo "$line" >> ~/.bashrc
+    fi
+done
 
 export CRISPASR_LIB_PATH="$LIB_PATH"
+export CRISPASR_DIR="$TARGET_BASE"
 
 echo "=========================================="
 echo " INSTALLATION SUCCESSFUL"
 echo "=========================================="
+echo "Project successfully downloaded and built in: $PROJECT_DIR"
 echo "Run the following command to apply environment variables:"
 echo "  source ~/.bashrc"

@@ -17,3 +17,9 @@ backend/app/services/__pycache__/diarization.cpython-314.pyc
 /backend/storage/audio
 backend/app/services/__pycache__/model_downloader.cpython-314.pyc
 /backend/static/*
+backend/audiotodataset/CrispASR/
+eredmeny_reszletes.json
+eredmeny_reszletes.json
+eredmeny_reszletes.json
+backend/audiotodataset/backend/models/ggml-large-v3-turbo-q5_0.bin
+backend/audiotodataset/backend/models/ggml-large-v3-turbo-q8_0.bin
