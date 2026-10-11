@@ -1,14 +1,18 @@
 package com.fablevi.audiotodataset.controllers;
 
+import com.fablevi.audiotodataset.models.DatasetEntry;
 import com.fablevi.audiotodataset.models.DiarizationResponse;
 import com.fablevi.audiotodataset.models.settings.RunnerSettings;
 import com.fablevi.audiotodataset.models.settings.enums.AiModalQuant;
+import com.fablevi.audiotodataset.services.CutAudioService;
 import com.fablevi.audiotodataset.services.DiarizeService;
 import com.fablevi.audiotodataset.services.ModelDownloadService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/diarize")
@@ -20,6 +24,9 @@ public class DiarizeController {
 
     @Autowired
     private DiarizeService diarizeService;
+
+    @Autowired
+    private CutAudioService cutAudioService;
 
     @PostMapping("/{youtubeAudioId}/{quant}")
     public ResponseEntity<Object> startDiarize(@PathVariable String youtubeAudioId, @PathVariable AiModalQuant quant, @RequestBody RunnerSettings incomingSettings) {
@@ -42,6 +49,11 @@ public class DiarizeController {
             log.error("Error during diarization process: {}", e.getMessage());
             return ResponseEntity.internalServerError().body("Diarization failed: " + e.getMessage());
         }
+    }
+
+    @PostMapping("/{youtubeAudioId}/cut")
+    public List<DatasetEntry> cutAudio(@PathVariable String youtubeAudioId, @RequestBody DiarizationResponse response) {
+        return cutAudioService.cutAudio(response, youtubeAudioId);
     }
 
     @GetMapping("/modelData")
