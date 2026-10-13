@@ -23,3 +23,4 @@ eredmeny_reszletes.json
 eredmeny_reszletes.json
 backend/audiotodataset/backend/models/ggml-large-v3-turbo-q5_0.bin
 backend/audiotodataset/backend/models/ggml-large-v3-turbo-q8_0.bin
+backend/__pycache__/main.cpython-313.pyc
