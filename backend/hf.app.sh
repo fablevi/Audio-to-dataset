@@ -10,9 +10,9 @@ if [ ! -d "$VENV_DIR" ]; then
     echo "Activating environment and installing dependencies..."
     source "$VENV_DIR/bin/activate"
 
-    if ! uv pip install fastapi uvicorn huggingface_hub; then
+    if ! uv pip install torch transformers librosa pillow numpy huggingface_hub fastapi uvicorn; then
         echo "Network or installation error detected with uv. Trying fallback to standard pip..."
-        pip install fastapi uvicorn huggingface_hub || {
+        pip install torch transformers librosa pillow numpy huggingface_hub fastapi uvicorn || {
             echo "Warning: Package installation failed, trying to run with existing environment..."
         }
     fi

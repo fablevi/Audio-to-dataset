@@ -2,8 +2,11 @@ from fastapi import FastAPI, HTTPException, status
 from pydantic import BaseModel
 from huggingface_hub import HfApi
 import os
+from typing import List, Optional
 
-app = FastAPI()
+from emotion import predict_batch
+
+app = FastAPI(title="Unified Audio Dataset & Emotion API", version="1.0.0")
 
 class UploadRequest(BaseModel):
     local_folder_path: str
@@ -11,6 +14,22 @@ class UploadRequest(BaseModel):
     hf_token: str
     repo_type: str = "dataset"
     commit_message: str = "Upload via FastAPI"
+
+class DatasetEntryInput(BaseModel):
+    fromMs: int
+    toMs: int
+    speaker: str
+    audioPath: str
+    text: str
+
+class DatasetEntryOutput(BaseModel):
+    fromMs: int
+    toMs: int
+    speaker: str
+    audioPath: str
+    text: str
+    emotionPrediction: Optional[str] = None
+    confidence: Optional[float] = None
 
 @app.post("/upload", status_code=status.HTTP_200_OK)
 def upload_to_huggingface(payload: UploadRequest):
@@ -44,6 +63,10 @@ def upload_to_huggingface(payload: UploadRequest):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
+
+@app.post("/predict", response_model=List[DatasetEntryOutput], status_code=status.HTTP_200_OK)
+def predict_emotions(entries: List[DatasetEntryInput]):
+    return predict_batch(entries)
 
 if __name__ == "__main__":
     import uvicorn

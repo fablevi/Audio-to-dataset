@@ -15,4 +15,6 @@ public class DatasetEntry {
     private String speaker;
     private String audioPath;
     private String text;
+    private String emotionPrediction;
+    private double confidence;
 }
