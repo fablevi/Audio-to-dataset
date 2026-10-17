@@ -1,9 +1,12 @@
 package com.fablevi.audiotodataset.models;
 
+import com.fablevi.audiotodataset.models.DiarizeJson.WordItem;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+
+import java.util.List;
 
 @Data
 @Builder
@@ -17,4 +20,5 @@ public class DatasetEntry {
     private String text;
     private String emotionPrediction;
     private double confidence;
+    private List<WordItem> words;
 }

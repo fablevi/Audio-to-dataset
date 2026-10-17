@@ -56,11 +56,6 @@ public class DiarizeController {
         return cutAudioService.cutAudio(response, youtubeAudioId);
     }
 
-    @GetMapping("/modelData")
-    public RunnerSettings getBackJSON1(){
-        return new RunnerSettings();
-    }
-
     private RunnerSettings updateRunnerSettings(RunnerSettings runnerSettings, RunnerSettings incomingSettings){
         if (incomingSettings.getWhisper() != null) {
             runnerSettings.setWhisper(incomingSettings.getWhisper());

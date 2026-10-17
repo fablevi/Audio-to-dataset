@@ -26,3 +26,4 @@ backend/audiotodataset/backend/models/ggml-large-v3-turbo-q8_0.bin
 backend/__pycache__/main.cpython-313.pyc
 backend/audiotodataset/backend/CrispASR/
 backend/__pycache__/emotion.cpython-313.pyc
+backend/__pycache__/audio_events.cpython-313.pyc

@@ -2,11 +2,14 @@ from fastapi import FastAPI, HTTPException, status
 from pydantic import BaseModel
 from huggingface_hub import HfApi
 import os
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 
 from emotion import predict_batch
+from audio_events import detect_batch
 
 app = FastAPI(title="Unified Audio Dataset & Emotion API", version="1.0.0")
+
+urlPrefix = "/py"
 
 class UploadRequest(BaseModel):
     local_folder_path: str
@@ -21,6 +24,9 @@ class DatasetEntryInput(BaseModel):
     speaker: str
     audioPath: str
     text: str
+    emotionPrediction: Optional[str] = None
+    confidence: Optional[float] = None
+    words: Optional[List[Dict[str, Any]]] = None
 
 class DatasetEntryOutput(BaseModel):
     fromMs: int
@@ -30,8 +36,9 @@ class DatasetEntryOutput(BaseModel):
     text: str
     emotionPrediction: Optional[str] = None
     confidence: Optional[float] = None
+    words: Optional[List[Dict[str, Any]]] = None
 
-@app.post("/upload", status_code=status.HTTP_200_OK)
+@app.post(urlPrefix + "/upload", status_code=status.HTTP_200_OK)
 def upload_to_huggingface(payload: UploadRequest):
     if not os.path.exists(payload.local_folder_path) or not os.path.isdir(payload.local_folder_path):
         raise HTTPException(
@@ -64,9 +71,14 @@ def upload_to_huggingface(payload: UploadRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
-@app.post("/predict", response_model=List[DatasetEntryOutput], status_code=status.HTTP_200_OK)
+@app.post(urlPrefix + "/emotions", response_model=List[DatasetEntryOutput], status_code=status.HTTP_200_OK)
 def predict_emotions(entries: List[DatasetEntryInput]):
     return predict_batch(entries)
+
+@app.post(urlPrefix + "/detect-events", response_model=List[DatasetEntryOutput], status_code=status.HTTP_200_OK)
+def detect_events_endpoint(entries: List[DatasetEntryInput]):
+    return detect_batch(entries)
+
 
 if __name__ == "__main__":
     import uvicorn

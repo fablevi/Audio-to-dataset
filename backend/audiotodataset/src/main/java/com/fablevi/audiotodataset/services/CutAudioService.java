@@ -137,6 +137,7 @@ public class CutAudioService {
                         .speaker(formattedSpeakerId)
                         .audioPath(relativeAudioPath.toString())
                         .text(segment.getText())
+                        .words(segment.getWords())
                         .build();
 
                 datasetList.add(entry);

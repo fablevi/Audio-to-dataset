@@ -63,7 +63,8 @@ def predict_batch(entries):
                 "audioPath": entry.audioPath,
                 "text": entry.text,
                 "emotionPrediction": "File Not Found",
-                "confidence": 0.0
+                "confidence": 0.0,
+                "words": entry.words
             })
             continue
 
@@ -111,7 +112,8 @@ def predict_batch(entries):
                 "audioPath": entry.audioPath,
                 "text": entry.text,
                 "emotionPrediction": emotion,
-                "confidence": confidence
+                "confidence": confidence,
+                "words": entry.words
             })
         except Exception as e:
             print(f"Error processing entry '{audio_path}': {str(e)}")
@@ -122,7 +124,8 @@ def predict_batch(entries):
                 "audioPath": entry.audioPath,
                 "text": entry.text,
                 "emotionPrediction": "Error",
-                "confidence": 0.0
+                "confidence": 0.0,
+                "words": entry.words
             })
 
     return results
